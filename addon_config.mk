@@ -15,11 +15,11 @@
 # and the PG will write to the console the kind of error and in which line it is
 
 meta:
-	ADDON_NAME = ofxOceanode_Osc
+	ADDON_NAME = ofxOceanodeOsc
 	ADDON_DESCRIPTION = Osc def for ofxOceanode
 	ADDON_AUTHOR = @PlaymodesStudio
 	ADDON_TAGS = "osc" "ofxOceanode"
-	ADDON_URL = https://github.com/PlaymodesStudio/ofxOceanode_Osc
+	ADDON_URL = https://github.com/PlaymodesStudio/ofxOceanodeOsc
 
 common:
 	# dependencies with other addons, a list of them separated by spaces
