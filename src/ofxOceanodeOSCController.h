@@ -17,7 +17,7 @@ public:
     
     void draw();
 private:
-
+    shared_ptr<ofxOceanodeContainer> container;
 };
 
 #endif /* ofxOceanodeOSCController_h */
