@@ -19,18 +19,15 @@ public:
     };
     
     void setup(){
-        auto senderInfo = controller->addSender(additionalName);
+        string host = controller->addSender(additionalName);
         
-        addParameter(oscHost.set("Host", senderInfo.first), ofxOceanodeParameterFlags_DisableSavePreset);
-        addParameter(oscPort.set("Port", senderInfo.second), ofxOceanodeParameterFlags_DisableSavePreset);
+        addParameter(oscHost.set("Host", host), ofxOceanodeParameterFlags_DisableSavePreset);
+        addParameter(oscPort.set("Port", "11511"));
         
         sender.setup(oscHost, ofToInt(oscPort));
         
         listeners.push(controller->hostEvents[additionalName].newListener([this](string &s){
             oscHost = s;
-        }));
-        listeners.push(controller->portEvents[additionalName].newListener([this](string &s){
-            oscPort = s;
         }));
         
         listeners.push(oscHost.newListener([this](string &s){

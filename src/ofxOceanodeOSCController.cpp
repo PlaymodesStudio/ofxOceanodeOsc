@@ -24,7 +24,6 @@ void ofxOceanodeOSCController::save(){
     for(auto &i : hosts){
         string name = i.first;
         _json[name]["Host"] = hosts[name];
-        _json[name]["Port"] = ports[name];
     }
     ofSavePrettyJson("OscConfig.json", _json);
 }
@@ -47,12 +46,6 @@ void ofxOceanodeOSCController::draw(){
                 hosts[name] = cString;
                 hostEvents[name].notify(hosts[name]);
             }
-            strcpy(cString, ports[name].c_str());
-            if (ImGui::InputText("Port", cString, 256, ImGuiInputTextFlags_EnterReturnsTrue))
-            {
-                ports[name] = cString;
-                portEvents[name].notify(ports[name]);
-            }
             delete[] cString;
             ImGui::TreePop();
         }
@@ -62,19 +55,16 @@ void ofxOceanodeOSCController::draw(){
     }
 }
 
-pair<string, string> ofxOceanodeOSCController::addSender(string name){
+string ofxOceanodeOSCController::addSender(string name){
     if(hosts.count(name) == 0){
         hosts[name] = "localhost";
-        ports[name] = "54321";
         if(!json.is_null()){
             if(json.count(name) == 1){
                 hosts[name] = json[name]["Host"];
-                ports[name] = json[name]["Port"];
             }
         }
         hostEvents[name] = ofEvent<string>();
-        portEvents[name] = ofEvent<string>();
     }
     //Send host and ports
-    return make_pair(hosts[name], ports[name]);
+    return hosts[name];
 }

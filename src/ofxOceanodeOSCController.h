@@ -19,14 +19,12 @@ public:
     
     void save();
     
-    pair<string, string> addSender(string name);
+    string addSender(string name);
     
     map<string, ofEvent<string>> hostEvents;
-    map<string, ofEvent<string>> portEvents;
 private:
     std::shared_ptr<ofxOceanodeContainer> container;
     map<string, string> hosts;
-    map<string, string> ports;
     
     ofJson json;
 };
