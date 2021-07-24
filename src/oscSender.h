@@ -62,6 +62,16 @@ public:
                     sender.sendMessage(message);
                 }));
             }
+			else if(ss[0] == "i"){
+                ofParameter<int> i;
+                addParameter(i.set(ss[1], ofToInt(ss[2]), ofToInt(ss[2]), ofToInt(ss[3])));
+                listeners.push(i.newListener([this, i](int &i_){
+                    ofxOscMessage message;
+                    message.setAddress("/" + additionalName + "/" + i.getName());
+                    message.addIntArg(i_);
+                    sender.sendMessage(message);
+                }));
+            }
         }
     }
     
