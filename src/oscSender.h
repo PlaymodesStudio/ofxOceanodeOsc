@@ -45,35 +45,84 @@ public:
                 ofParameter<float> f;
                 addParameter(f.set(ss[1], ofToFloat(ss[2]), ofToFloat(ss[2]), ofToFloat(ss[3])));
                 listeners.push(f.newListener([this, f](float &f_){
-                    ofxOscMessage message;
-                    message.setAddress("/" + additionalName + "/" + f.getName());
-                    message.addFloatArg(f_);
-                    sender.sendMessage(message);
+					if (!disable) {
+						ofxOscMessage message;
+						message.setAddress("/" + additionalName + "/" + f.getName());
+						message.addFloatArg(f_);
+						sender.sendMessage(message);
+					}
                 }));
             }else if(ss[0] == "vf"){
                 ofParameter<vector<float>> vf;
                 addParameter(vf.set(ss[1], vector<float>(1, ofToFloat(ss[2])), vector<float>(1, ofToFloat(ss[2])), vector<float>(1, ofToFloat(ss[3]))));
                 listeners.push(vf.newListener([this, vf](vector<float> &vf_){
-                    ofxOscMessage message;
-                    message.setAddress("/" + additionalName + "/" + vf.getName());
-                    for(auto f : vf_){
-                        message.addFloatArg(f);
-                    }
-                    sender.sendMessage(message);
+					if (!disable) {
+						ofxOscMessage message;
+						message.setAddress("/" + additionalName + "/" + vf.getName());
+						for (auto f : vf_) {
+							message.addFloatArg(f);
+						}
+						sender.sendMessage(message);
+					}
                 }));
             }
 			else if(ss[0] == "i"){
                 ofParameter<int> i;
                 addParameter(i.set(ss[1], ofToInt(ss[2]), ofToInt(ss[2]), ofToInt(ss[3])));
                 listeners.push(i.newListener([this, i](int &i_){
-                    ofxOscMessage message;
-                    message.setAddress("/" + additionalName + "/" + i.getName());
-                    message.addIntArg(i_);
-                    sender.sendMessage(message);
+					if (!disable) {
+						ofxOscMessage message;
+						message.setAddress("/" + additionalName + "/" + i.getName());
+						message.addIntArg(i_);
+						sender.sendMessage(message);
+					}
                 }));
             }
         }
+
+		disable = false;
     }
+
+	void presetWillBeLoaded() override {
+		disable = true;
+	}
+
+	void presetHasLoaded() override {
+		disable = false;
+
+		for (int i = 0; i < getParameterGroup().size(); i++) {
+			ofxOceanodeAbstractParameter &absParam = static_cast<ofxOceanodeAbstractParameter&>(getParameterGroup().get(i));
+			if (absParam.valueType() == typeid(float).name())
+			{
+				auto tempCast = absParam.cast<float>().getParameter();
+				ofxOscMessage message;
+				message.setAddress("/" + additionalName + "/" + tempCast.getName());
+				message.addFloatArg(tempCast);
+				sender.sendMessage(message);
+
+			}
+			else if (absParam.valueType() == typeid(int).name())
+			{
+				auto tempCast = absParam.cast<int>().getParameter();
+
+				ofxOscMessage message;
+				message.setAddress("/" + additionalName + "/" + tempCast.getName());
+				message.addIntArg(tempCast);
+				sender.sendMessage(message);
+			}
+			else if (absParam.valueType() == typeid(std::vector<float>).name())
+			{
+				auto tempCast = absParam.cast<std::vector<float>>().getParameter();
+
+				ofxOscMessage message;
+				message.setAddress("/" + additionalName + "/" + tempCast.getName());
+				for (auto f : tempCast.get()) {
+					message.addFloatArg(f);
+				}
+				sender.sendMessage(message);
+			}
+		}
+	}
     
 private:
     string additionalName;
@@ -86,6 +135,8 @@ private:
     ofParameter<string> oscPort;
     
     ofEventListeners listeners;
+
+	bool disable;
 };
 
 #endif /* oscSender_h */
