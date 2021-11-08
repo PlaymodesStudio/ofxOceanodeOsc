@@ -48,7 +48,7 @@ public:
 					if (!disable) {
 						ofxOscMessage message;
 						message.setAddress("/" + additionalName + "/" + f.getName());
-						message.addFloatArg(f_);
+                        message.addFloatArg(ofClamp(f_, f.getMin(), f.getMax()));
 						sender.sendMessage(message);
 					}
                 }));
@@ -60,7 +60,7 @@ public:
 						ofxOscMessage message;
 						message.setAddress("/" + additionalName + "/" + vf.getName());
 						for (auto f : vf_) {
-							message.addFloatArg(f);
+							message.addFloatArg(ofClamp(f, vf.getMin()[0], vf.getMax()[0]));
 						}
 						sender.sendMessage(message);
 					}
@@ -73,7 +73,7 @@ public:
 					if (!disable) {
 						ofxOscMessage message;
 						message.setAddress("/" + additionalName + "/" + i.getName());
-						message.addIntArg(i_);
+						message.addIntArg(ofClamp(i_, i.getMin(), i.getMax()));
 						sender.sendMessage(message);
 					}
                 }));
@@ -97,7 +97,7 @@ public:
 				auto tempCast = absParam.cast<float>().getParameter();
 				ofxOscMessage message;
 				message.setAddress("/" + additionalName + "/" + tempCast.getName());
-				message.addFloatArg(tempCast);
+				message.addFloatArg(ofClamp(tempCast, tempCast.getMin(), tempCast.getMax()));
 				sender.sendMessage(message);
 
 			}
@@ -107,7 +107,7 @@ public:
 
 				ofxOscMessage message;
 				message.setAddress("/" + additionalName + "/" + tempCast.getName());
-				message.addIntArg(tempCast);
+				message.addIntArg(ofClamp(tempCast, tempCast.getMin(), tempCast.getMax()));
 				sender.sendMessage(message);
 			}
 			else if (absParam.valueType() == typeid(std::vector<float>).name())
@@ -117,7 +117,7 @@ public:
 				ofxOscMessage message;
 				message.setAddress("/" + additionalName + "/" + tempCast.getName());
 				for (auto f : tempCast.get()) {
-					message.addFloatArg(f);
+					message.addFloatArg(ofClamp(f, tempCast.getMin()[0], tempCast.getMax()[0]));
 				}
 				sender.sendMessage(message);
 			}
