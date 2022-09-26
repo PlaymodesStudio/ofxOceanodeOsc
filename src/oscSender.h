@@ -78,6 +78,18 @@ public:
 					}
                 }));
             }
+            else if(ss[0] == "s"){
+                ofParameter<string> sparam;
+                addParameter(sparam.set(ss[1], ""));
+                listeners.push(sparam.newListener([this, sparam](string &str){
+                    if(!disable){
+                        ofxOscMessage message;
+                        message.setAddress("/" + additionalName + "/" + sparam.getName());
+                        message.addStringArg(str);
+                        sender.sendMessage(message);
+                    }
+                }));
+            }
         }
 
 		disable = false;
