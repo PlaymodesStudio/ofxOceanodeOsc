@@ -47,7 +47,11 @@ public:
                 listeners.push(f.newListener([this, f](float &f_){
 					if (!disable) {
 						ofxOscMessage message;
-						message.setAddress("/" + additionalName + "/" + f.getName());
+                        if(additionalName == f.getName()){
+                            message.setAddress("/" + additionalName);
+                        }else{
+                            message.setAddress("/" + additionalName + "/" + f.getName());
+                        }
                         message.addFloatArg(ofClamp(f_, f.getMin(), f.getMax()));
 						sender.sendMessage(message);
 					}
@@ -58,7 +62,11 @@ public:
                 listeners.push(vf.newListener([this, vf](vector<float> &vf_){
 					if (!disable) {
 						ofxOscMessage message;
-						message.setAddress("/" + additionalName + "/" + vf.getName());
+                        if(additionalName == vf.getName()){
+                            message.setAddress("/" + additionalName);
+                        }else{
+                            message.setAddress("/" + additionalName + "/" + vf.getName());
+                        }
 						for (auto f : vf_) {
 							message.addFloatArg(ofClamp(f, vf.getMin()[0], vf.getMax()[0]));
 						}
@@ -72,7 +80,11 @@ public:
                 listeners.push(i.newListener([this, i](int &i_){
 					if (!disable) {
 						ofxOscMessage message;
-						message.setAddress("/" + additionalName + "/" + i.getName());
+                        if(additionalName == i.getName()){
+                            message.setAddress("/" + additionalName);
+                        }else{
+                            message.setAddress("/" + additionalName + "/" + i.getName());
+                        }
 						message.addIntArg(ofClamp(i_, i.getMin(), i.getMax()));
 						sender.sendMessage(message);
 					}
@@ -84,7 +96,11 @@ public:
                 listeners.push(sparam.newListener([this, sparam](string &str){
                     if(!disable){
                         ofxOscMessage message;
-                        message.setAddress("/" + additionalName + "/" + sparam.getName());
+                        if(additionalName == sparam.getName()){
+                            message.setAddress("/" + additionalName);
+                        }else{
+                            message.setAddress("/" + additionalName + "/" + sparam.getName());
+                        }
                         message.addStringArg(str);
                         sender.sendMessage(message);
                     }
@@ -108,7 +124,11 @@ public:
 			{
 				auto tempCast = absParam.cast<float>().getParameter();
 				ofxOscMessage message;
-				message.setAddress("/" + additionalName + "/" + tempCast.getName());
+                if(additionalName == tempCast.getName()){
+                    message.setAddress("/" + additionalName);
+                }else{
+                    message.setAddress("/" + additionalName + "/" + tempCast.getName());
+                }
 				message.addFloatArg(ofClamp(tempCast, tempCast.getMin(), tempCast.getMax()));
 				sender.sendMessage(message);
 
@@ -118,8 +138,11 @@ public:
 				auto tempCast = absParam.cast<int>().getParameter();
 
 				ofxOscMessage message;
-				message.setAddress("/" + additionalName + "/" + tempCast.getName());
-				message.addIntArg(ofClamp(tempCast, tempCast.getMin(), tempCast.getMax()));
+                if(additionalName == tempCast.getName()){
+                    message.setAddress("/" + additionalName);
+                }else{
+                    message.setAddress("/" + additionalName + "/" + tempCast.getName());
+                }				message.addIntArg(ofClamp(tempCast, tempCast.getMin(), tempCast.getMax()));
 				sender.sendMessage(message);
 			}
 			else if (absParam.valueType() == typeid(std::vector<float>).name())
@@ -127,8 +150,11 @@ public:
 				auto tempCast = absParam.cast<std::vector<float>>().getParameter();
 
 				ofxOscMessage message;
-				message.setAddress("/" + additionalName + "/" + tempCast.getName());
-				for (auto f : tempCast.get()) {
+                if(additionalName == tempCast.getName()){
+                    message.setAddress("/" + additionalName);
+                }else{
+                    message.setAddress("/" + additionalName + "/" + tempCast.getName());
+                }				for (auto f : tempCast.get()) {
 					message.addFloatArg(ofClamp(f, tempCast.getMin()[0], tempCast.getMax()[0]));
 				}
 				sender.sendMessage(message);
