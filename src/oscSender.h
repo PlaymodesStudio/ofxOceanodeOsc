@@ -73,6 +73,23 @@ public:
 						sender.sendMessage(message);
 					}
                 }));
+            }else if(ss[0] == "vi"){
+                ofParameter<vector<int>> vi;
+                addParameter(vi.set(ss[1], vector<int>(1, ofToFloat(ss[2])), vector<int>(1, ofToFloat(ss[2])), vector<int>(1, ofToFloat(ss[3]))));
+                listeners.push(vi.newListener([this, vi](vector<int> &vi_){
+                    if (!disable) {
+                        ofxOscMessage message;
+                        if(additionalName == vi.getName()){
+                            message.setAddress("/" + additionalName);
+                        }else{
+                            message.setAddress("/" + additionalName + "/" + vi.getName());
+                        }
+                        for (auto f : vi_) {
+                            message.addIntArg(ofClamp(f, vi.getMin()[0], vi.getMax()[0]));
+                        }
+                        sender.sendMessage(message);
+                    }
+                }));
             }
 			else if(ss[0] == "i"){
                 ofParameter<int> i;
@@ -159,6 +176,20 @@ public:
 				}
 				sender.sendMessage(message);
 			}
+            else if (absParam.valueType() == typeid(std::vector<int>).name())
+            {
+                auto tempCast = absParam.cast<std::vector<int>>().getParameter();
+
+                ofxOscMessage message;
+                if(additionalName == tempCast.getName()){
+                    message.setAddress("/" + additionalName);
+                }else{
+                    message.setAddress("/" + additionalName + "/" + tempCast.getName());
+                }                for (auto f : tempCast.get()) {
+                    message.addIntArg(ofClamp(f, tempCast.getMin()[0], tempCast.getMax()[0]));
+                }
+                sender.sendMessage(message);
+            }
 		}
 	}
     
