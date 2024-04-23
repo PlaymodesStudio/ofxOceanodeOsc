@@ -12,7 +12,7 @@
 
 class ofxOceanodeOSCController : public ofxOceanodeBaseController{
 public:
-    ofxOceanodeOSCController(std::shared_ptr<ofxOceanodeContainer> _container);
+    ofxOceanodeOSCController(ofParameter<int> & _receiverPort);
     ~ofxOceanodeOSCController();
     
     void draw();
@@ -23,7 +23,7 @@ public:
     
     map<string, ofEvent<string>> hostEvents;
 private:
-    std::shared_ptr<ofxOceanodeContainer> container;
+    shared_ptr<ofParameter<int>> receiverPortParam;
     map<string, string> hosts;
     
     ofJson json;
