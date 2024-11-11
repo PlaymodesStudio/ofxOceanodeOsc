@@ -206,23 +206,27 @@ void oscVariablesGroup::update() {
         ofxOscMessage message;
         receiver.getNextMessage(message);
         
-        string address = message.getAddress();
-        if (!address.empty() && address[0] == '/') {
-            address = address.substr(1);
+        string msgAddress = message.getAddress();
+        if (!msgAddress.empty() && msgAddress[0] == '/') {
+            msgAddress = msgAddress.substr(1);
         }
         
         // Store or overwrite with the latest message for this address
-        latestMessages[address] = std::move(message);
+        latestMessages[msgAddress] = std::move(message);
     }
     
     // Now process only the latest message for each address
     std::lock_guard<std::mutex> lock(parameterMutex);
     
-    for (const auto& [address, message] : latestMessages) {
+    for (const auto& pair : latestMessages) 
+    {
+        const string& msgAddress = pair.first;
+        const ofxOscMessage& message = pair.second;
+        
         auto paramIt = std::find_if(parameters.begin(), parameters.end(),
-                                  [&address](const auto& param) {
-            return param->getName() == address;
-        });
+                                  [&msgAddress](const auto& param) {
+                                      return param->getName() == msgAddress;
+                                  });
         
         if (paramIt != parameters.end()) {
             auto& param = *paramIt;
@@ -269,12 +273,11 @@ void oscVariablesGroup::update() {
             }
             catch (const std::exception& e) {
                 ofLogError("oscVariablesGroup") << "Error processing message for parameter "
-                << address << ": " << e.what();
+                    << msgAddress << ": " << e.what();
             }
         }
     }
 }
-
 //-------------------------------------------------------------------------
 // ofxOceanodeOSCVariablesController
 //-------------------------------------------------------------------------
