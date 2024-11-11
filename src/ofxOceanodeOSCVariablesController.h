@@ -38,6 +38,9 @@ public:
     void addStringParameter(std::string parameterName, std::string value = "");
     void addFloatVectorParameter(std::string parameterName, std::vector<float> value = std::vector<float>());
     void addStringVectorParameter(std::string parameterName, std::vector<string> value = std::vector<string>());
+    void addIntParameter(std::string parameterName, int value = 0);
+    void addIntVectorParameter(std::string parameterName, std::vector<int> value = std::vector<int>());
+        
     void removeParameter(std::string parameterName);
     void resetOSCConnection();
     void update();

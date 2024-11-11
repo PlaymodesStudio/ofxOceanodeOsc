@@ -62,7 +62,19 @@ shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addParameter(ofAbstractPa
             });
             parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
         }
-        
+        auto* intParam = dynamic_cast<ofParameter<int>*>(&param);
+        if(intParam != nullptr) {
+            auto listener = intParam->newListener([this, paramName = param.getName()](int& value) {
+                auto sharedGroup = group.lock();
+                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
+                    ofxOscMessage msg;
+                    msg.setAddress("/" + paramName);
+                    msg.addIntArg(value);
+                    sharedGroup->sender.sendMessage(msg);
+                }
+            });
+            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
+        }
         // Handle string parameters
         auto* stringParam = dynamic_cast<ofParameter<string>*>(&param);
         if(stringParam != nullptr) {
@@ -94,7 +106,21 @@ shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addParameter(ofAbstractPa
             });
             parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
         }
-        
+        auto* intVectorParam = dynamic_cast<ofParameter<vector<int>>*>(&param);
+        if(intVectorParam != nullptr) {
+            auto listener = intVectorParam->newListener([this, paramName = param.getName()](vector<int>& values) {
+                auto sharedGroup = group.lock();
+                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
+                    ofxOscMessage msg;
+                    msg.setAddress("/" + paramName);
+                    for(const auto& value : values) {
+                        msg.addIntArg(value);
+                    }
+                    sharedGroup->sender.sendMessage(msg);
+                }
+            });
+            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
+        }
         // Handle vector<string> parameters
         auto* stringVectorParam = dynamic_cast<ofParameter<vector<string>>*>(&param);
         if(stringVectorParam != nullptr) {

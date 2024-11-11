@@ -93,8 +93,6 @@ void oscVariablesGroup::addFloatParameter(std::string parameterName, float value
     }
 }
 
-
-
 void oscVariablesGroup::addFloatVectorParameter(std::string parameterName, std::vector<float> value) {
     // Create and properly initialize the parameter
     ofParameter<vector<float>> tempParam;
@@ -108,6 +106,30 @@ void oscVariablesGroup::addFloatVectorParameter(std::string parameterName, std::
     // Now add the reference to our parameters list
     parameters.push_back(std::make_shared<ofParameter<std::vector<float>>>(tempParam));
     // And add to all nodes
+    for(auto &node : nodes) {
+        if(node != nullptr) {
+            node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+        }
+    }
+}
+
+void oscVariablesGroup::addIntParameter(std::string parameterName, int value) {
+    ofParameter<int> tempParam;
+    parameters.push_back(tempParam.set(parameterName, value, INT_MIN, INT_MAX).newReference());
+    for(auto &node : nodes) {
+        node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+    }
+}
+
+void oscVariablesGroup::addIntVectorParameter(std::string parameterName, std::vector<int> value) {
+    ofParameter<vector<int>> tempParam;
+    vector<int> defaultVal = {0};
+    vector<int> minVal = {INT_MIN};
+    vector<int> maxVal = {INT_MAX};
+    
+    tempParam.set(parameterName, value, minVal, maxVal);
+    tempParam.setSerializable(true);
+    parameters.push_back(std::make_shared<ofParameter<std::vector<int>>>(tempParam));
     for(auto &node : nodes) {
         if(node != nullptr) {
             node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
@@ -239,6 +261,12 @@ void oscVariablesGroup::update() {
                         param->cast<float>() = value;
                     }
                 }
+                else if (param->isOfType<int>()) {
+                    if (message.getNumArgs() > 0 && message.getArgType(0) == OFXOSC_TYPE_INT32) {
+                        int value = message.getArgAsInt32(0);
+                        param->cast<int>() = value;
+                    }
+                }
                 // Handle string parameters
                 else if (param->isOfType<string>()) {
                     if (message.getNumArgs() > 0 && message.getArgType(0) == OFXOSC_TYPE_STRING) {
@@ -256,6 +284,17 @@ void oscVariablesGroup::update() {
                     }
                     if (!values.empty()) {
                         param->cast<vector<float>>() = values;
+                    }
+                }
+                else if (param->isOfType<vector<int>>()) {
+                    vector<int> values;
+                    for (int i = 0; i < message.getNumArgs(); i++) {
+                        if (message.getArgType(i) == OFXOSC_TYPE_INT32) {
+                            values.push_back(message.getArgAsInt32(i));
+                        }
+                    }
+                    if (!values.empty()) {
+                        param->cast<vector<int>>() = values;
                     }
                 }
                 // Handle string vector parameters
@@ -463,6 +502,12 @@ void ofxOceanodeOSCVariablesController::draw() {
                 else if(absParam.isOfType<vector<string>>()) {
                     ImGui::Text("Vec.String");
                 }
+                else if(absParam.isOfType<int>()) {
+                    ImGui::Text("Int");
+                }
+                else if(absParam.isOfType<vector<int>>()) {
+                    ImGui::Text("Vec.Int");
+                }
                 
                 ImGui::SameLine(225 + 80);
                 if(ImGui::Button("[-]")){
@@ -487,6 +532,8 @@ void ofxOceanodeOSCVariablesController::draw() {
                 enum Types {
                     Type_Float,
                     Type_FloatVector,
+                    Type_Int,
+                    Type_IntVector,
                     Type_String,
                     Type_StringVector,
                     Type_COUNT
@@ -496,6 +543,8 @@ void ofxOceanodeOSCVariablesController::draw() {
                 const char* types_names[Type_COUNT] = {
                     "Float",
                     "Float Vector",
+                    "Int",           // Add these
+                    "Int Vector",    // Add these
                     "String",
                     "String Vector"
                 };
@@ -522,15 +571,28 @@ void ofxOceanodeOSCVariablesController::draw() {
                             case Type_String:
                                 group->addStringParameter(proposedNewName);
                                 break;
-                            case Type_FloatVector: {
+                            case Type_FloatVector:
+                            {
                                 std::vector<float> defaultVec = {0};  // Single element vector with default value
                                 group->addFloatVectorParameter(proposedNewName, defaultVec);
                                 break;
                             }
-                            case Type_StringVector: {
+                            case Type_StringVector: 
+                            {
                                 // Initialize with empty vector
                                 std::vector<string> defaultVec;
                                 group->addStringVectorParameter(proposedNewName, defaultVec);
+                                break;
+                            }
+                            case Type_Int:
+                            {
+                                group->addIntParameter(proposedNewName);
+                                break;
+                            }
+                            case Type_IntVector:
+                            {
+                                std::vector<int> defaultVec = {0};
+                                group->addIntVectorParameter(proposedNewName, defaultVec);
                                 break;
                             }
                             default:
@@ -764,11 +826,17 @@ void ofxOceanodeOSCVariablesController::save() {
             if(param->isOfType<float>()) {
                 paramJson["type"] = "float";
             }
+            else if(param->isOfType<int>()) {
+                paramJson["type"] = "int";
+            }
             else if(param->isOfType<string>()) {
                 paramJson["type"] = "string";
             }
             else if(param->isOfType<vector<float>>()) {
                 paramJson["type"] = "float_vector";
+            }
+            else if(param->isOfType<vector<int>>()) {
+                paramJson["type"] = "int_vector";
             }
             else if(param->isOfType<vector<string>>()) {
                 paramJson["type"] = "string_vector";
@@ -864,12 +932,19 @@ void ofxOceanodeOSCVariablesController::load() {
                         if(paramType == "float") {
                             newGroup->addFloatParameter(paramName);
                         }
+                        else if(paramType == "int") {
+                            newGroup->addIntParameter(paramName);
+                        }
                         else if(paramType == "string") {
                             newGroup->addStringParameter(paramName);
                         }
                         else if(paramType == "float_vector") {
                             vector<float> defaultVec = {0};
                             newGroup->addFloatVectorParameter(paramName, defaultVec);
+                        }
+                        else if(paramType == "int_vector") {
+                            vector<int> defaultVec = {0};
+                            newGroup->addIntVectorParameter(paramName, defaultVec);
                         }
                         else if(paramType == "string_vector") {
                             vector<string> defaultVec;
