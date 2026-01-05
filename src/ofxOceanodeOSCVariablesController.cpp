@@ -354,7 +354,8 @@ void ofxOceanodeOSCVariablesController::draw() {
     for(auto &group : groups) {
         auto &groupParams = group->parameters;
         ImGui::PushID(group->name.c_str());
-        ImGui::SetNextItemOpen(false, ImGuiCond_Once);
+        if(groups.size()>1) ImGui::SetNextItemOpen(false, ImGuiCond_Once);
+		else ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         bool openGroup = true;
         
         // set collapsing header color and title
