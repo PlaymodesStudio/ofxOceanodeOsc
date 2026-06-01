@@ -399,7 +399,10 @@ void ofxOceanodeOSCVariablesController::draw() {
                     tempPorts[group->name] = group->portParam;
                 }
                 
-                if (ImGui::InputInt(portInputId.c_str(), &tempPorts[group->name], 0, 0, ImGuiInputTextFlags_EnterReturnsTrue)) {
+                // ImGuiInputTextFlags_EnterReturnsTrue is no longer supported by InputInt/InputScalar
+                // in imgui 1.92+. Use IsItemDeactivatedAfterEdit() instead.
+                ImGui::InputInt(portInputId.c_str(), &tempPorts[group->name], 0, 0);
+                if (ImGui::IsItemDeactivatedAfterEdit()) {
                     if (tempPorts[group->name] != group->portParam) {
                         group->portParam = ofClamp(tempPorts[group->name], 1024, 65535);
                         configChanged = true;
@@ -413,17 +416,22 @@ void ofxOceanodeOSCVariablesController::draw() {
                 
                 // Create unique identifier for IP input
                 string ipInputId = "##ip_" + group->name;
-                static std::map<string, char[16]> ipBuffers;  // Store IP buffers per group
+                // Use std::array<char,16> as value — raw char[16] arrays are non-copyable
+                // and cannot be used as std::map value types (causes heap corruption / UB).
+                static std::map<string, std::array<char, 16>> ipBuffers;
                 
                 // Initialize IP buffer if needed
                 if(ipBuffers.find(group->name) == ipBuffers.end()) {
-                    strcpy(ipBuffers[group->name], group->ipParam.get().c_str());
+                    std::array<char, 16> buf{};
+                    strncpy(buf.data(), group->ipParam.get().c_str(), 15);
+                    buf[15] = '\0';
+                    ipBuffers[group->name] = buf;
                 }
                 
-                if (ImGui::InputText(ipInputId.c_str(), ipBuffers[group->name], 16,
+                if (ImGui::InputText(ipInputId.c_str(), ipBuffers[group->name].data(), 16,
                                      ImGuiInputTextFlags_EnterReturnsTrue))
                 {
-                    string newIp = string(ipBuffers[group->name]);
+                    string newIp = string(ipBuffers[group->name].data());
                     if (newIp != group->ipParam.get())
                     {
                         group->ipParam = newIp;
@@ -441,20 +449,24 @@ void ofxOceanodeOSCVariablesController::draw() {
                 ImGui::SameLine();
                 ImGui::SetNextItemWidth(100);
                 int tempPort = group->portParam.get();
-                configChanged = ImGui::InputInt(ofToString("##receiverport"+group->name).c_str(), &tempPort,1,1,ImGuiInputTextFlags_EnterReturnsTrue);
-                
-                tempPort = ofClamp(tempPort, 1024, 65535);
-                group->portParam.set(tempPort);
+                // ImGuiInputTextFlags_EnterReturnsTrue is no longer supported by InputInt/InputScalar
+                // in imgui 1.92+. Use IsItemDeactivatedAfterEdit() instead.
+                ImGui::InputInt(ofToString("##receiverport"+group->name).c_str(), &tempPort, 1, 1);
+                if (ImGui::IsItemDeactivatedAfterEdit())
+                {
+                    int clampedPort = ofClamp(tempPort, 1024, 65535);
+                    if(clampedPort != group->portParam.get()) {
+                        group->portParam.set(clampedPort);
+                        configChanged = true;
+                    }
+                }
             }
             
             // If any config parameter changed, reset the OSC connection
             if (configChanged) {
                 group->resetOSCConnection();
             }
-            
-            ImGui::Separator();
-            ImGui::Separator();
-            
+                        
             //-------------------------------------------------
             // Group parameters
             //-------------------------------------------------
@@ -663,9 +675,7 @@ void ofxOceanodeOSCVariablesController::draw() {
             << "Removed group and unregistered node type: " << groupToDelete;
         }
     }
-    
-    ImGui::Separator();
-    
+        
     if(ImGui::Button("[New Group]")){
         ImGui::OpenPopup("New OSC Variables Group");
     }
@@ -699,7 +709,6 @@ void ofxOceanodeOSCVariablesController::draw() {
                                              ImGuiInputTextFlags_EnterReturnsTrue);
         
         // OSC Mode Selection
-        ImGui::Separator();
         ImGui::RadioButton("Sender", &oscMode, 0);
         ImGui::SameLine();
         ImGui::RadioButton("Receiver", &oscMode, 1);
@@ -727,9 +736,7 @@ void ofxOceanodeOSCVariablesController::draw() {
             ImGui::InputInt("##receiverport", &auxPort);
             auxPort = ofClamp(auxPort, 1024, 65535);
         }
-        
-        ImGui::Separator();
-        
+                
         // Buttons
         if (ImGui::Button("OK", ImVec2(120, 0)) || enterPressed) {
             string newName = string(groupNameBuffer);
