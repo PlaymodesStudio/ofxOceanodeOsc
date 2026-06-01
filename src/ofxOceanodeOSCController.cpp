@@ -35,8 +35,6 @@ void ofxOceanodeOSCController::draw(){
     if(ImGui::IsItemDeactivatedAfterEdit()){
         receiverPortParam->set(port);
     }
-    ImGui::Separator();
-    ImGui::Separator();
     for(auto &i : hosts){
         string name = i.first;
         if(ImGui::TreeNode(name.c_str())){
