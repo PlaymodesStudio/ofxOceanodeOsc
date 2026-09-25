@@ -5,6 +5,9 @@
 #include "oscVariables.h"
 #include "imgui.h"
 
+#include <algorithm>
+#include <cstring>
+
 //-------------------------------------------------------------------------
 // oscVariablesGroup
 //-------------------------------------------------------------------------
@@ -350,456 +353,211 @@ ofxOceanodeOSCVariablesController::~ofxOceanodeOSCVariablesController() {
 
 
 void ofxOceanodeOSCVariablesController::draw() {
-    string groupToDelete = "";
-    for(auto &group : groups) {
-        auto &groupParams = group->parameters;
-        ImGui::PushID(group->name.c_str());
-        if(groups.size()>1) ImGui::SetNextItemOpen(false, ImGuiCond_Once);
-		else ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-        bool openGroup = true;
-        
-        // set collapsing header color and title
-        ImVec4 color = (group->oscMode == OscMode::Sender) ?
-        ImVec4(0.1f, 0.15f, 0.1f, 0.8f) :     // for Sender
-        ImVec4(0.15f, 0.1f, 0.1f, 0.8f);      // for Receiver
-        
-        ImGui::PushStyleColor(ImGuiCol_Header, color);
-        ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                              ImVec4(color.x + 0.1f, color.y + 0.1f, color.z + 0.1f, color.w));
-        ImGui::PushStyleColor(ImGuiCol_HeaderActive,
-                              ImVec4(color.x + 0.2f, color.y + 0.2f, color.z + 0.2f, color.w));
-        
-        string headerText = group->name;
-        if(group->oscMode == OscMode::Sender) {
-            headerText = "Sender : " + headerText;
-        }
-        else headerText = "Receiver : " + headerText;
-        
-        int labelToValueDistance = 100;
-        if(ImGui::CollapsingHeader(headerText.c_str(), &openGroup)) {
-            // OSC Configuration Section
+    if(ImGui::MenuItem("Save OSC Variables")) save();
+    if(ImGui::MenuItem("Load OSC Variables")) load();
+    if(ImGui::MenuItem("New Group...")) newGroupRequested = true;
+    ImGui::Separator();
+    ImGui::TextUnformatted("Groups");
+
+    string groupToDelete;
+    for(const auto& group : groups) {
+        ImGui::PushID(group.get());
+        ImGui::SetNextItemOpen(groups.size() == 1, ImGuiCond_Once);
+        const ImVec4 headerColor = group->oscMode == OscMode::Sender
+            ? ImVec4(0.1f, 0.15f, 0.1f, 0.8f)
+            : ImVec4(0.15f, 0.1f, 0.1f, 0.8f);
+        // Keep the sender/receiver tint at rest; the shared menu hover color
+        // applies when the header is hovered or pressed.
+        ImGui::PushStyleColor(ImGuiCol_Header, headerColor);
+        const string header = string(group->oscMode == OscMode::Sender ? "Sender: " : "Receiver: ") + group->name;
+        const bool open = ImGui::TreeNode("##group", "%s", header.c_str());
+        ImGui::SameLine();
+        if(ImGui::SmallButton("[-]##group")) groupToDelete = group->name;
+        ImGui::PopStyleColor();
+
+        if(open) {
+            const bool senderMode = group->oscMode == OscMode::Sender;
+            const bool connected = senderMode ? group->sender.isReady() : group->receiver.isListening();
+            ImGui::Text("%s: %s", senderMode ? "Ready" : "Listening", connected ? "Yes" : "No");
+
+            auto portIt = editablePorts.find(group->name);
+            if(portIt == editablePorts.end())
+                portIt = editablePorts.emplace(group->name, group->portParam.get()).first;
+            ImGui::SetNextItemWidth(100.0f);
+            ImGui::InputInt("Port", &portIt->second, 0, 0);
             bool configChanged = false;
-            
-            
-            // Port Configuration - Show appropriate port based on mode
-            if (group->oscMode == OscMode::Sender) {
-                bool isListening = group->sender.isReady();
-                ImGui::Checkbox("Is ready?", &isListening);
-                ImGui::SameLine();
-                ImGui::Text("Port:");
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(100);
-                
-                // Create unique identifier for each port input
-                string portInputId = "##senderport_" + group->name;
-                static std::map<string, int> tempPorts;  // Store temp ports per group
-                
-                // Initialize temp port if needed
-                if(tempPorts.find(group->name) == tempPorts.end()) {
-                    tempPorts[group->name] = group->portParam;
+            if(ImGui::IsItemDeactivatedAfterEdit()) {
+                const int port = ofClamp(portIt->second, 1024, 65535);
+                portIt->second = port;
+                if(port != group->portParam.get()) {
+                    group->portParam = port;
+                    configChanged = true;
                 }
-                
-                // ImGuiInputTextFlags_EnterReturnsTrue is no longer supported by InputInt/InputScalar
-                // in imgui 1.92+. Use IsItemDeactivatedAfterEdit() instead.
-                ImGui::InputInt(portInputId.c_str(), &tempPorts[group->name], 0, 0);
-                if (ImGui::IsItemDeactivatedAfterEdit()) {
-                    if (tempPorts[group->name] != group->portParam) {
-                        group->portParam = ofClamp(tempPorts[group->name], 1024, 65535);
-                        configChanged = true;
-                    }
+            }
+
+            if(senderMode) {
+                auto hostIt = editableHosts.find(group->name);
+                if(hostIt == editableHosts.end()) {
+                    std::array<char, 16> host{};
+                    std::strncpy(host.data(), group->ipParam.get().c_str(), host.size() - 1);
+                    hostIt = editableHosts.emplace(group->name, host).first;
                 }
-                ImGui::SameLine();
-                // IP Address for Sender
-                ImGui::Text("IP Address:");
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(120);
-                
-                // Create unique identifier for IP input
-                string ipInputId = "##ip_" + group->name;
-                // Use std::array<char,16> as value — raw char[16] arrays are non-copyable
-                // and cannot be used as std::map value types (causes heap corruption / UB).
-                static std::map<string, std::array<char, 16>> ipBuffers;
-                
-                // Initialize IP buffer if needed
-                if(ipBuffers.find(group->name) == ipBuffers.end()) {
-                    std::array<char, 16> buf{};
-                    strncpy(buf.data(), group->ipParam.get().c_str(), 15);
-                    buf[15] = '\0';
-                    ipBuffers[group->name] = buf;
-                }
-                
-                if (ImGui::InputText(ipInputId.c_str(), ipBuffers[group->name].data(), 16,
-                                     ImGuiInputTextFlags_EnterReturnsTrue))
-                {
-                    string newIp = string(ipBuffers[group->name].data());
-                    if (newIp != group->ipParam.get())
-                    {
-                        group->ipParam = newIp;
+                ImGui::SetNextItemWidth(135.0f);
+                if(ImGui::InputText("Host IP", hostIt->second.data(), hostIt->second.size(),
+                                    ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    const string host(hostIt->second.data());
+                    if(host != group->ipParam.get()) {
+                        group->ipParam = host;
                         configChanged = true;
                     }
                 }
             }
-            else
-            {
-                // Receiver mode
-                bool isListening = group->receiver.isListening();
-                ImGui::Checkbox("Is listening?", &isListening);
+            if(configChanged) group->resetOSCConnection();
+
+            ImGui::Separator();
+            string parameterToDelete;
+            for(const auto& parameter : group->parameters) {
+                ImGui::PushID(parameter.get());
+                ofAbstractParameter& value = *parameter;
+                const char* typeName = "Unknown";
+                if(value.isOfType<float>()) typeName = "Float";
+                else if(value.isOfType<vector<float>>()) typeName = "Vec.Float";
+                else if(value.isOfType<int>()) typeName = "Int";
+                else if(value.isOfType<vector<int>>()) typeName = "Vec.Int";
+                else if(value.isOfType<string>()) typeName = "String";
+                else if(value.isOfType<vector<string>>()) typeName = "Vec.String";
+                ImGui::TextColored(ImVec4(150.0f / 255.0f, 150.0f / 255.0f, 150.0f / 255.0f, 1.0f),
+                                   "/%s", value.getName().c_str());
                 ImGui::SameLine();
-                ImGui::Text("Port:");
+                ImGui::TextDisabled("%s", typeName);
                 ImGui::SameLine();
-                ImGui::SetNextItemWidth(100);
-                int tempPort = group->portParam.get();
-                // ImGuiInputTextFlags_EnterReturnsTrue is no longer supported by InputInt/InputScalar
-                // in imgui 1.92+. Use IsItemDeactivatedAfterEdit() instead.
-                ImGui::InputInt(ofToString("##receiverport"+group->name).c_str(), &tempPort, 1, 1);
-                if (ImGui::IsItemDeactivatedAfterEdit())
-                {
-                    int clampedPort = ofClamp(tempPort, 1024, 65535);
-                    if(clampedPort != group->portParam.get()) {
-                        group->portParam.set(clampedPort);
-                        configChanged = true;
-                    }
-                }
-            }
-            
-            // If any config parameter changed, reset the OSC connection
-            if (configChanged) {
-                group->resetOSCConnection();
-            }
-                        
-            //-------------------------------------------------
-            // Group parameters
-            //-------------------------------------------------
-            for(int i = 0; i < groupParams.size(); i++)
-            {
-                ofAbstractParameter &absParam = *groupParams[i];
-                std::string uniqueId = absParam.getName();
-                ImGui::PushID(uniqueId.c_str());
-                
-                ImGui::Text("/");
-                ImGui::SameLine();
-                
-                // Get current cursor position
-                ImVec2 cursorPos = ImGui::GetCursorPos();
-                ImVec2 windowPos = ImGui::GetWindowPos();
-                
-                
-                // Calculate rectangle dimensions
-                float rectHeight = ImGui::GetTextLineHeight() + 4;  // Add some padding
-                
-                // Draw the background rectangle (spans full width to 200)
-                ImGui::GetWindowDrawList()->AddRectFilled(
-                                                          ImVec2(windowPos.x + cursorPos.x, windowPos.y + cursorPos.y),
-                                                          ImVec2(windowPos.x + cursorPos.x + 200, windowPos.y + cursorPos.y + rectHeight),
-                                                          IM_COL32(64, 64, 64, 255)  // Mid gray (adjust color as needed)
-                                                          );
-                
-                // Draw the text
-                ImGui::Text("%s", uniqueId.c_str());
-                ImGui::SameLine(225);
-                ImGui::SetNextItemWidth(100);
-                
-                std::string hiddenUniqueId = "##" + uniqueId;
-                if(absParam.isOfType<float>())
-                {
-                    ImGui::Text("Float");
-                }
-                else if(absParam.isOfType<string>())
-                {
-                    ImGui::Text("String");
-                    
-                }
-                else if(absParam.isOfType<vector<float>>()) {
-                    ImGui::Text("Vec.Float");
-                }
-                else if(absParam.isOfType<vector<string>>()) {
-                    ImGui::Text("Vec.String");
-                }
-                else if(absParam.isOfType<int>()) {
-                    ImGui::Text("Int");
-                }
-                else if(absParam.isOfType<vector<int>>()) {
-                    ImGui::Text("Vec.Int");
-                }
-                
-                ImGui::SameLine(225 + 80);
-                if(ImGui::Button("[-]")){
-                    group->removeParameter(absParam.getName());
-                }
-                
+                if(ImGui::SmallButton("[-]##parameter")) parameterToDelete = value.getName();
                 ImGui::PopID();
             }
-            
-            if(ImGui::Button("[+]")){
-                ImGui::OpenPopup("New Variable");
+            if(!parameterToDelete.empty()) group->removeParameter(parameterToDelete);
+            if(ImGui::Button("New Variable...")) {
+                newVariableGroupName = group->name;
+                newVariableRequested = true;
             }
-            
-            // Always center this window when appearing
-            ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-            ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-            if(ImGui::BeginPopupModal("New Variable", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-            {
-                //ImGui::Text("%s %s %s", "New variable for", group->name.c_str(), "group");
-                ImGui::Separator();
-                
-                enum Types {
-                    Type_Float,
-                    Type_FloatVector,
-                    Type_Int,
-                    Type_IntVector,
-                    Type_String,
-                    Type_StringVector,
-                    Type_COUNT
-                };
-                
-                static int type = Type_Float;
-                const char* types_names[Type_COUNT] = {
-                    "Float",
-                    "Float Vector",
-                    "Int",           // Add these
-                    "Int Vector",    // Add these
-                    "String",
-                    "String Vector"
-                };
-                const char* type_name = (type >= 0 && type < Type_COUNT) ? types_names[type] : "Unknown";
-                ImGui::SliderInt("Type", &type, 0, Type_COUNT - 1, type_name);
-                
-                static char cString[255];
-                bool enterPressed = false;
-                if(ImGui::InputText("Name", cString, 255, ImGuiInputTextFlags_EnterReturnsTrue)){
-                    enterPressed = true;
-                }
-                
-                // Remove the vector size input completely
-                
-                if (ImGui::Button("OK", ImVec2(120, 0)) || enterPressed) {
-                    string proposedNewName(cString);
-                    if(proposedNewName != "" && find_if(groupParams.begin(), groupParams.end(),
-                                                        [proposedNewName](const auto &param){return param->getName() == proposedNewName;}) == groupParams.end()) {
-                        
-                        switch(type) {
-                            case Type_Float:
-                                group->addFloatParameter(proposedNewName);
-                                break;
-                            case Type_String:
-                                group->addStringParameter(proposedNewName);
-                                break;
-                            case Type_FloatVector:
-                            {
-                                std::vector<float> defaultVec = {0};  // Single element vector with default value
-                                group->addFloatVectorParameter(proposedNewName, defaultVec);
-                                break;
-                            }
-                            case Type_StringVector: 
-                            {
-                                // Initialize with empty vector
-                                std::vector<string> defaultVec;
-                                group->addStringVectorParameter(proposedNewName, defaultVec);
-                                break;
-                            }
-                            case Type_Int:
-                            {
-                                group->addIntParameter(proposedNewName);
-                                break;
-                            }
-                            case Type_IntVector:
-                            {
-                                std::vector<int> defaultVec = {0};
-                                group->addIntVectorParameter(proposedNewName, defaultVec);
-                                break;
-                            }
-                            default:
-                                ofLog() << "Cannot create variable of unknown type";
-                        }
-                        
-                        ImGui::CloseCurrentPopup();
-                    }
-                    strcpy(cString, "");
-                    ImGui::CloseCurrentPopup();
-                }
-                
-                ImGui::SameLine();
-                if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-                    strcpy(cString, "");
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::EndPopup();
-            }
+            ImGui::TreePop();
         }
-        
-        // reseting color of the collapsing header
-        ImGui::PopStyleColor(3);
-        
-        if(!openGroup){
-            groupToDelete = group->name;
-        }
-        
         ImGui::PopID();
     }
-    
-    // Handle group deletion with proper cleanup
-    if(groupToDelete != ""){
-        // Find the group we're about to delete
-        auto groupIt = std::find_if(groups.begin(), groups.end(),
-                                    [groupToDelete](const auto &group) {
-            cout << "Group->name: " << group->name << "    groupToDelete: " << groupToDelete << endl;
+
+    if(!groupToDelete.empty()) {
+        editablePorts.erase(groupToDelete);
+        editableHosts.erase(groupToDelete);
+        groups.erase(std::remove_if(groups.begin(), groups.end(), [&](const auto& group) {
             return group->name == groupToDelete;
-        });
-        
-        if(groupIt != groups.end()) {
-            // Get pointer to the group before removing it
-            auto group = *groupIt;
-            
-            // First unregister the node type from the registry
-            string modName;
-            if(group->oscMode==OscMode::Sender)
-            {
-                modName = "Sender ";
-            }
-            else
-            {
-                modName = "Receiv. ";
-            }
-            
-            container->getRegistry()->unregisterModel<oscVariables>("OSC Variables", modName + group->name, std::weak_ptr<oscVariablesGroup>());
-            
-            // Remove all existing nodes of this type
-            for(auto* node : group->nodes) {
-                node->deleteSelf();
-            }
-            
-            // Now remove the group from our list
-            groups.erase(groupIt);
-            
-            ofLogNotice("ofxOceanodeOSCVariablesController")
-            << "Removed group and unregistered node type: " << groupToDelete;
-        }
+        }), groups.end());
     }
-        
-    if(ImGui::Button("[New Group]")){
+}
+
+void ofxOceanodeOSCVariablesController::drawPopups() {
+    if(newGroupRequested) {
+        newGroupName[0] = '\0';
+        std::strcpy(newGroupHost, "127.0.0.1");
+        newGroupPort = 8000;
+        newGroupMode = 0;
         ImGui::OpenPopup("New OSC Variables Group");
+        newGroupRequested = false;
     }
-    ImGui::SameLine();
-    if(ImGui::Button("[Save]")){
-        save();
+    if(newVariableRequested) {
+        newVariableName[0] = '\0';
+        newVariableType = 0;
+        ImGui::OpenPopup("New OSC Variable");
+        newVariableRequested = false;
     }
-    ImGui::SameLine();
-    if(ImGui::Button("[Load]")){
-        load();
-    }
-    
-    bool unusedOpen = true;
-    // Always center this window when appearing
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+
+    const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    // Inside the ofxOceanodeOSCVariablesController::draw() function,
-    // replace the existing PopupModal section with:
-    if(ImGui::BeginPopupModal("New OSC Variables Group", &unusedOpen, ImGuiWindowFlags_AlwaysAutoResize)){
-        ImGui::Text("Configure OSC Group");
+    if(ImGui::BeginPopupModal("New OSC Variables Group", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Configure OSC Group");
         ImGui::Separator();
-        
-        // Group Name Input
-        static char groupNameBuffer[255] = "";
-        static char ipAddressBuffer[16] = "127.0.0.1";
-        static int auxPort = 8000;    // Default sender port
-        static int oscMode = 0;        // 0 for sender, 1 for receiver
-        
-        ImGui::Text("Group Name:");
-        bool enterPressed = ImGui::InputText("##groupname", groupNameBuffer, 255,
-                                             ImGuiInputTextFlags_EnterReturnsTrue);
-        
-        // OSC Mode Selection
-        ImGui::RadioButton("Sender", &oscMode, 0);
+        if(ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 22.0f);
+        const bool enter = ImGui::InputText("Group Name", newGroupName, sizeof(newGroupName),
+                                            ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::RadioButton("Sender", &newGroupMode, 0);
         ImGui::SameLine();
-        ImGui::RadioButton("Receiver", &oscMode, 1);
-        
-        // Show appropriate port based on mode
-        if (oscMode == 0) { // Sender mode
-            ImGui::Text("Sender Port:");
-            ImGui::SameLine(150);
-            ImGui::SetNextItemWidth(100);
-            ImGui::InputInt("##senderport", &auxPort);
-            auxPort = ofClamp(auxPort, 1024, 65535);
-            
-            // IP Address input
-            ImGui::Text("Destination IP:");
-            ImGui::SameLine(150);
-            ImGui::InputText("##ipaddress", ipAddressBuffer, 16);
+        ImGui::RadioButton("Receiver", &newGroupMode, 1);
+        ImGui::SetNextItemWidth(100.0f);
+        ImGui::InputInt(newGroupMode == 0 ? "Sender Port" : "Receiver Port", &newGroupPort);
+        if(newGroupMode == 0) {
+            ImGui::SetNextItemWidth(135.0f);
+            ImGui::InputText("Destination IP", newGroupHost, sizeof(newGroupHost));
             ImGui::SameLine();
-            if (ImGui::Button("localhost")) {
-                strcpy(ipAddressBuffer, "127.0.0.1");
-            }
-        } else { // Receiver mode
-            ImGui::Text("Receiver Port:");
-            ImGui::SameLine(150);
-            ImGui::SetNextItemWidth(100);
-            ImGui::InputInt("##receiverport", &auxPort);
-            auxPort = ofClamp(auxPort, 1024, 65535);
+            if(ImGui::Button("localhost")) std::strcpy(newGroupHost, "127.0.0.1");
         }
-                
-        // Buttons
-        if (ImGui::Button("OK", ImVec2(120, 0)) || enterPressed) {
-            string newName = string(groupNameBuffer);
-            if(newName != "" &&
-               find_if(groups.begin(), groups.end(),
-                       [&newName](const auto &group){
-                return group->name == newName;
-            }) == groups.end())
-            {
-                // First create the group without initializing OSC
-                auto newGroup = std::make_shared<oscVariablesGroup>();
-                
-                // Initialize the basic members
-                newGroup->name = newName;
-                newGroup->container = container;
-                newGroup->oscMode = (oscMode == 0) ? OscMode::Sender : OscMode::Receiver;
-                newGroup->portParam = auxPort;
-                newGroup->ipParam = string(ipAddressBuffer);
-                
-                // Add to groups vector so shared_ptr exists
-                groups.push_back(newGroup);
-                
-                // Now that the shared_ptr exists, we can safely initialize OSC
-                newGroup->initializeOSC();
-                
-                // Register the module
-                newGroup->registerModule();
-                
-                // Reset to defaults
-                memset(groupNameBuffer, 0, sizeof(groupNameBuffer));
-                strcpy(ipAddressBuffer, "127.0.0.1");
-                auxPort = 8000;
-                oscMode = 0;
-                
-                ImGui::CloseCurrentPopup();
-            }
-            else {
-                ImGui::OpenPopup("Error##newgroup");
-            }
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            // Clear all inputs
-            memset(groupNameBuffer, 0, sizeof(groupNameBuffer));
-            strcpy(ipAddressBuffer, "127.0.0.1");  // Reset to localhost
-            auxPort = 8000;     // Reset to default sender port
-            oscMode = 0;        // Reset to default
+
+        const string name(newGroupName);
+        const bool duplicate = std::any_of(groups.begin(), groups.end(), [&](const auto& group) {
+            return group->name == name;
+        });
+        const bool canCreate = !name.empty() && !duplicate;
+        if(duplicate) ImGui::TextDisabled("A group with this name already exists.");
+        ImGui::BeginDisabled(!canCreate);
+        const bool create = ImGui::Button("Create");
+        ImGui::EndDisabled();
+        if(canCreate && (create || enter)) {
+            auto group = std::make_shared<oscVariablesGroup>();
+            group->name = name;
+            group->container = container;
+            group->oscMode = newGroupMode == 0 ? OscMode::Sender : OscMode::Receiver;
+            group->portParam = ofClamp(newGroupPort, 1024, 65535);
+            group->ipParam = string(newGroupHost);
+            groups.push_back(group);
+            group->initializeOSC();
+            group->registerModule();
             ImGui::CloseCurrentPopup();
         }
-        
-        // Error popup
-        if (ImGui::BeginPopupModal("Error##newgroup", nullptr,
-                                   ImGuiWindowFlags_AlwaysAutoResize))
-        {
-            static string lastError;
-            ImGui::Text("%s", lastError.c_str());
-            
-            if (ImGui::Button("OK", ImVec2(120, 0))) {
+        ImGui::SameLine();
+        if(ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    if(ImGui::BeginPopupModal("New OSC Variable", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        auto groupIt = std::find_if(groups.begin(), groups.end(), [&](const auto& group) {
+            return group->name == newVariableGroupName;
+        });
+        if(groupIt == groups.end()) {
+            ImGui::TextUnformatted("This group is no longer available.");
+            if(ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+        } else {
+            const auto& group = *groupIt;
+            ImGui::Text("New variable for %s", group->name.c_str());
+            static const char* types[] = {
+                "Float", "Float Vector", "Int", "Int Vector", "String", "String Vector"
+            };
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16.0f);
+            ImGui::Combo("Type", &newVariableType, types, 6);
+            if(ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 22.0f);
+            const bool enter = ImGui::InputText("Name", newVariableName, sizeof(newVariableName),
+                                                ImGuiInputTextFlags_EnterReturnsTrue);
+            const string name(newVariableName);
+            const bool duplicate = std::any_of(group->parameters.begin(), group->parameters.end(),
+                [&](const auto& parameter) { return parameter->getName() == name; });
+            const bool canCreate = !name.empty() && !duplicate;
+            if(duplicate) ImGui::TextDisabled("A variable with this name already exists.");
+            ImGui::BeginDisabled(!canCreate);
+            const bool create = ImGui::Button("Create");
+            ImGui::EndDisabled();
+            if(canCreate && (create || enter)) {
+                switch(newVariableType) {
+                    case 0: group->addFloatParameter(name); break;
+                    case 1: group->addFloatVectorParameter(name, {0}); break;
+                    case 2: group->addIntParameter(name); break;
+                    case 3: group->addIntVectorParameter(name, {0}); break;
+                    case 4: group->addStringParameter(name); break;
+                    case 5: group->addStringVectorParameter(name, {}); break;
+                }
                 ImGui::CloseCurrentPopup();
             }
-            ImGui::EndPopup();
+            ImGui::SameLine();
+            if(ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) ImGui::CloseCurrentPopup();
         }
-        
         ImGui::EndPopup();
     }
 }
@@ -879,19 +637,10 @@ void ofxOceanodeOSCVariablesController::load() {
         return;
     }
     
-    // Unregister all existing groups before loading new ones
-    for(auto &group : groups) {
-        string modName = (group->oscMode == OscMode::Sender) ? "Sender " : "Receiv. ";
-        container->getRegistry()->unregisterModel<oscVariables>("OSC Variables", modName + group->name, std::weak_ptr<oscVariablesGroup>());
-        
-        // Remove all nodes
-        for(auto* node : group->nodes) {
-            node->deleteSelf();
-        }
-    }
-    
-    // Clear the groups list
+    // Group destruction removes its nodes and unregisters its model.
     groups.clear();
+    editablePorts.clear();
+    editableHosts.clear();
     
     for(const auto& groupJson : json["groups"]) {
         try {

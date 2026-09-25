@@ -4,6 +4,9 @@
 #include "ofxOceanodeBaseController.h"
 #include "ofxOsc.h"
 
+#include <array>
+#include <map>
+
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
@@ -72,7 +75,9 @@ public:
     ofxOceanodeOSCVariablesController(shared_ptr<ofxOceanodeContainer> _container);
     ~ofxOceanodeOSCVariablesController();
     
-    void draw();
+    void draw() override;
+    void drawPopups() override;
+    bool isMenuController() const override { return true; }
     
     void save();
     void load();
@@ -81,6 +86,18 @@ private:
     shared_ptr<ofxOceanodeContainer> container;
     
     std::vector<std::shared_ptr<oscVariablesGroup>> groups;
+    std::map<std::string, int> editablePorts;
+    std::map<std::string, std::array<char, 16>> editableHosts;
+
+    bool newGroupRequested = false;
+    bool newVariableRequested = false;
+    std::string newVariableGroupName;
+    char newGroupName[255] = {};
+    char newGroupHost[16] = "127.0.0.1";
+    int newGroupPort = 8000;
+    int newGroupMode = 0;
+    char newVariableName[255] = {};
+    int newVariableType = 0;
 };
 
 #endif /* ofxOceanodeOSCVariablesController_h */
