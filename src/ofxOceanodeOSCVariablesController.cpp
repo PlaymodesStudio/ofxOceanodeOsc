@@ -4,6 +4,7 @@
 #include "ofxOceanodeNodeRegistry.h"
 #include "oscVariables.h"
 #include "imgui.h"
+#include "ofxOceanodeMenu.h"
 
 #include <algorithm>
 #include <cstring>
@@ -355,9 +356,8 @@ ofxOceanodeOSCVariablesController::~ofxOceanodeOSCVariablesController() {
 void ofxOceanodeOSCVariablesController::draw() {
     if(ImGui::MenuItem("Save OSC Variables")) save();
     if(ImGui::MenuItem("Load OSC Variables")) load();
+    ofxOceanodeMenu::section("Groups");
     if(ImGui::MenuItem("New Group...")) newGroupRequested = true;
-    ImGui::Separator();
-    ImGui::TextUnformatted("Groups");
 
     string groupToDelete;
     for(const auto& group : groups) {
