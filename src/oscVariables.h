@@ -14,6 +14,10 @@ public:
     void update(ofEventArgs& e) override; // Add the update method
     
     shared_ptr<ofxOceanodeAbstractParameter> addParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags = 0);
+    // A variable pin of the group. In a Receiver group the node writes it from
+    // incoming OSC (oscVariablesGroup::update), so it is an output, with the same
+    // flags addOutputParameter sets. In a Sender group it is an input.
+    shared_ptr<ofxOceanodeAbstractParameter> addVariableParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags = 0);
     std::weak_ptr<oscVariablesGroup> getGroup() {return group;};
     
 private:

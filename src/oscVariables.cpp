@@ -40,6 +40,14 @@ void oscVariables::update(ofEventArgs& e)
     }
 }
 
+shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addVariableParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags) {
+    auto sharedGroup = group.lock();
+    if(sharedGroup && sharedGroup->oscMode == OscMode::Receiver) {
+        flags |= outputParameterFlags;
+    }
+    return addParameter(param, flags);
+}
+
 shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags) {
     auto result = ofxOceanodeNodeModel::addParameter(param, flags);
     if(!result) {

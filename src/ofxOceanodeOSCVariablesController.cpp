@@ -81,7 +81,7 @@ void oscVariablesGroup::addNode(oscVariables *node) {
         ofAbstractParameter& param = *parameters[i];
         // Try using explicit flag value
         ofxOceanodeParameterFlags flags = ofxOceanodeParameterFlags_DisableSavePreset;
-        node->addParameter(param, flags);
+        node->addVariableParameter(param, flags);
     }
 }
 
@@ -93,7 +93,7 @@ void oscVariablesGroup::addFloatParameter(std::string parameterName, float value
     ofParameter<float> tempParam;
     parameters.push_back(tempParam.set(parameterName, value, -FLT_MAX, FLT_MAX).newReference());
     for(auto &node : nodes){
-        node->addParameter(tempParam,ofxOceanodeParameterFlags_DisableSavePreset);
+        node->addVariableParameter(tempParam,ofxOceanodeParameterFlags_DisableSavePreset);
     }
 }
 
@@ -112,7 +112,7 @@ void oscVariablesGroup::addFloatVectorParameter(std::string parameterName, std::
     // And add to all nodes
     for(auto &node : nodes) {
         if(node != nullptr) {
-            node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+            node->addVariableParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
         }
     }
 }
@@ -121,7 +121,7 @@ void oscVariablesGroup::addIntParameter(std::string parameterName, int value) {
     ofParameter<int> tempParam;
     parameters.push_back(tempParam.set(parameterName, value, INT_MIN, INT_MAX).newReference());
     for(auto &node : nodes) {
-        node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+        node->addVariableParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
     }
 }
 
@@ -136,7 +136,7 @@ void oscVariablesGroup::addIntVectorParameter(std::string parameterName, std::ve
     parameters.push_back(std::make_shared<ofParameter<std::vector<int>>>(tempParam));
     for(auto &node : nodes) {
         if(node != nullptr) {
-            node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+            node->addVariableParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
         }
     }
 }
@@ -145,7 +145,7 @@ void oscVariablesGroup::addStringParameter(std::string parameterName, std::strin
     ofParameter<std::string> tempParam;
     parameters.push_back(tempParam.set(parameterName, value).newReference());
     for(auto &node : nodes){
-        node->addParameter(tempParam,ofxOceanodeParameterFlags_DisableSavePreset);
+        node->addVariableParameter(tempParam,ofxOceanodeParameterFlags_DisableSavePreset);
     }
 }
 
@@ -154,7 +154,7 @@ void oscVariablesGroup::addStringVectorParameter(std::string parameterName, std:
     ofParameter<std::vector<string>> tempParam;
     parameters.push_back(tempParam.set(parameterName, value).newReference());
     for(auto &node : nodes){
-        node->addParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
+        node->addVariableParameter(tempParam, ofxOceanodeParameterFlags_DisableSavePreset);
     }
 }
 
