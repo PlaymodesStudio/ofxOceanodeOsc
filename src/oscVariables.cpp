@@ -1,5 +1,8 @@
 #include "oscVariables.h"
 #include "ofxOceanodeOSCVariablesController.h"
+#include "ofxOceanodeContainer.h"
+
+#include <set>
 
 oscVariables::oscVariables(const std::string& name, const std::weak_ptr<oscVariablesGroup>& group)
 : ofxOceanodeNodeModel(
@@ -17,8 +20,6 @@ oscVariables::oscVariables(const std::string& name, const std::weak_ptr<oscVaria
 }
 
 oscVariables::~oscVariables() {
-    parameterListeners.clear();
-    
     std::shared_ptr<oscVariablesGroup> sharedGroup = group.lock();
     if(sharedGroup) {
         sharedGroup->removeNode(this);
@@ -34,7 +35,7 @@ void oscVariables::setup() {
 
 void oscVariables::update(ofEventArgs& e)
 {
-    if(auto groupPtr = group.lock()) 
+    if(auto groupPtr = group.lock())
     {
         groupPtr->update();
     }
@@ -45,111 +46,77 @@ shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addVariableParameter(ofAb
     if(sharedGroup && sharedGroup->oscMode == OscMode::Receiver) {
         flags |= outputParameterFlags;
     }
-    return addParameter(param, flags);
-}
-
-shared_ptr<ofxOceanodeAbstractParameter> oscVariables::addParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags) {
-    auto result = ofxOceanodeNodeModel::addParameter(param, flags);
+    auto result = addParameter(param, flags);
     if(!result) {
         ofLogError("oscVariables") << "Failed to add parameter to node model: " << param.getName();
-        return nullptr;
     }
-    
-    try {
-        // Handle float parameters
-        auto* floatParam = dynamic_cast<ofParameter<float>*>(&param);
-        if(floatParam != nullptr) {
-            auto listener = floatParam->newListener([this, paramName = param.getName()](float& value) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    msg.addFloatArg(value);
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        auto* intParam = dynamic_cast<ofParameter<int>*>(&param);
-        if(intParam != nullptr) {
-            auto listener = intParam->newListener([this, paramName = param.getName()](int& value) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    msg.addIntArg(value);
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        // Handle string parameters
-        auto* stringParam = dynamic_cast<ofParameter<string>*>(&param);
-        if(stringParam != nullptr) {
-            auto listener = stringParam->newListener([this, paramName = param.getName()](string& value) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    msg.addStringArg(value);
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        
-        // Handle vector<float> parameters
-        auto* floatVectorParam = dynamic_cast<ofParameter<vector<float>>*>(&param);
-        if(floatVectorParam != nullptr) {
-            auto listener = floatVectorParam->newListener([this, paramName = param.getName()](vector<float>& values) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    for(const auto& value : values) {
-                        msg.addFloatArg(value);
-                    }
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        auto* intVectorParam = dynamic_cast<ofParameter<vector<int>>*>(&param);
-        if(intVectorParam != nullptr) {
-            auto listener = intVectorParam->newListener([this, paramName = param.getName()](vector<int>& values) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    for(const auto& value : values) {
-                        msg.addIntArg(value);
-                    }
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        // Handle vector<string> parameters
-        auto* stringVectorParam = dynamic_cast<ofParameter<vector<string>>*>(&param);
-        if(stringVectorParam != nullptr) {
-            auto listener = stringVectorParam->newListener([this, paramName = param.getName()](vector<string>& values) {
-                auto sharedGroup = group.lock();
-                if(sharedGroup && sharedGroup->oscMode == OscMode::Sender) {
-                    ofxOscMessage msg;
-                    msg.setAddress("/" + paramName);
-                    for(const auto& value : values) {
-                        msg.addStringArg(value);
-                    }
-                    sharedGroup->sender.sendMessage(msg);
-                }
-            });
-            parameterListeners[param.getName()] = std::make_shared<ofEventListener>(std::move(listener));
-        }
-        
-    } catch(const std::exception& e) {
-        ofLogError("oscVariables") << "Exception in addParameter: " << e.what();
-        return nullptr;
-    }
-    
     return result;
+}
+
+void oscVariables::removeVariableParameter(const std::string& parameterName) {
+    if(!getParameterGroup().contains(parameterName)) return;
+    static_cast<ofxOceanodeAbstractParameter&>(getParameterGroup().get(parameterName)).removeAllConnections();
+    ofxOceanodeNodeModel::removeParameter(parameterName);
+    parameterGroupChanged.notify();
+}
+
+void oscVariables::replaceVariableParameter(const std::string& parameterName, ofAbstractParameter& newParameter) {
+    auto& nodeParameters = getParameterGroup();
+    if(!nodeParameters.contains(parameterName)) return;
+
+    struct Link { ofxOceanodeAbstractParameter* other; bool persistent; };
+    std::vector<Link> outLinks;
+    std::vector<Link> inLinks;
+    auto& oldParameter = static_cast<ofxOceanodeAbstractParameter&>(nodeParameters.get(parameterName));
+    for(auto* connection : oldParameter.getOutConnections()) {
+        outLinks.push_back({&connection->getSinkParameter(), connection->getIsPersistent()});
+    }
+    for(auto* connection : oldParameter.getInConnections()) {
+        inLinks.push_back({&connection->getSourceParameter(), connection->getIsPersistent()});
+    }
+    std::vector<std::string> order;
+    for(int i = 0; i < nodeParameters.size(); i++) order.push_back(nodeParameters.get(i).getName());
+
+    removeVariableParameter(parameterName);
+    auto pin = addVariableParameter(newParameter, ofxOceanodeParameterFlags_DisableSavePreset);
+    nodeParameters.reorder(order);
+
+    // Connections the new type can't take are dropped.
+    auto* host = getHostContainer();
+    if(host != nullptr && pin != nullptr) {
+        for(const auto& link : outLinks) {
+            auto* connection = host->createConnection(*pin, *link.other);
+            if(connection != nullptr) connection->setIsPersistent(link.persistent);
+        }
+        for(const auto& link : inLinks) {
+            auto* connection = host->createConnection(*link.other, *pin);
+            if(connection != nullptr) connection->setIsPersistent(link.persistent);
+        }
+    }
+    parameterGroupChanged.notify();
+}
+
+void oscVariables::sortVariables(const std::vector<std::shared_ptr<ofAbstractParameter>>& groupParameters) {
+    auto& nodeParameters = getParameterGroup();
+    std::vector<std::string> rows;
+    std::set<std::string> variablePins;
+    for(const auto& parameter : groupParameters) {
+        if(!nodeParameters.contains(parameter->getName())) continue;
+        rows.push_back(parameter->getName());
+        variablePins.insert(parameter->getEscapedName());
+    }
+
+    // Refill the slots the variable pins hold, so the port and host pins stay put.
+    std::vector<std::string> order;
+    size_t next = 0;
+    for(int i = 0; i < nodeParameters.size(); i++) {
+        auto& parameter = nodeParameters.get(i);
+        if(variablePins.count(parameter.getEscapedName()) != 0 && next < rows.size()) {
+            order.push_back(rows[next++]);
+        } else {
+            order.push_back(parameter.getName());
+        }
+    }
+    nodeParameters.reorder(order);
+    parameterGroupChanged.notify();
 }

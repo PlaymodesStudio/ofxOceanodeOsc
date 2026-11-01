@@ -9,21 +9,27 @@ class oscVariables : public ofxOceanodeNodeModel {
 public:
     oscVariables(const std::string& name, const std::weak_ptr<oscVariablesGroup>& group);
     ~oscVariables();
-    
+
     void setup() override;
     void update(ofEventArgs& e) override; // Add the update method
-    
-    shared_ptr<ofxOceanodeAbstractParameter> addParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags = 0);
-    // A variable pin of the group. In a Receiver group the node writes it from
-    // incoming OSC (oscVariablesGroup::update), so it is an output, with the same
-    // flags addOutputParameter sets. In a Sender group it is an input.
+
+    // A variable pin of the group, sharing the group's parameter, so a rename
+    // of the group parameter renames the pin. In a Receiver group the node
+    // writes it from incoming OSC (oscVariablesGroup::update), so it is an
+    // output, with the same flags addOutputParameter sets. In a Sender group
+    // it is an input.
     shared_ptr<ofxOceanodeAbstractParameter> addVariableParameter(ofAbstractParameter& param, ofxOceanodeParameterFlags flags = 0);
+    void removeVariableParameter(const std::string& parameterName);
+    // Swaps the pin for the group's new parameter of another type at the same
+    // place, reconnecting whatever the new type accepts.
+    void replaceVariableParameter(const std::string& parameterName, ofAbstractParameter& newParameter);
+    // Puts the variable pins in the group's row order.
+    void sortVariables(const std::vector<std::shared_ptr<ofAbstractParameter>>& groupParameters);
     std::weak_ptr<oscVariablesGroup> getGroup() {return group;};
-    
+
 private:
     std::string name;
     std::weak_ptr<oscVariablesGroup> group;
-    std::map<std::string, std::shared_ptr<ofEventListener>> parameterListeners;
 };
 
 #endif /* oscVariables_h */
